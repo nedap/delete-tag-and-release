@@ -28,6 +28,7 @@ if (!process.env.INPUT_TAG_NAME) {
 const tagName = process.env.INPUT_TAG_NAME;
 
 const shouldDeleteRelease = process.env.INPUT_DELETE_RELEASE === "true";
+const shouldDeleteDraftRelease = process.env.INPUT_DELETE_DRAFT_RELEASE === "true";
 
 const commonOpts = {
   host: "api.github.com",
@@ -66,33 +67,34 @@ async function deleteTag() {
 }
 
 async function deleteReleases() {
-  let releaseIds = [];
+  let releases = [];
   try {
     const data = await fetch({
       ...commonOpts,
       path: `/repos/${owner}/${repo}/releases`,
       method: "GET",
     });
-    releaseIds = (data || [])
-      .filter(({ tag_name, draft }) => tag_name === tagName && draft === false)
-      .map(({ id }) => id);
+    releases = (data || [])
+      .filter(({ tag_name, draft }) => tag_name === tagName && (shouldDeleteDraftRelease || (draft === false)));
   } catch (error) {
     console.error(`🌶  failed to get list of releases <- ${error.message}`);
     process.exitCode = 1;
     return;
   }
 
-  if (releaseIds.length === 0) {
+  if (releases.length === 0) {
     console.error(`😕  no releases found associated to tag "${tagName}"`);
     return;
   }
-  console.log(`🍻  found ${releaseIds.length} releases to delete`);
+  console.log(`🍻  found ${releases.length} releases to delete`);
 
   let hasError = false;
-  for (let i = 0; i < releaseIds.length; i++) {
-    const releaseId = releaseIds[i];
+  for (let i = 0; i < releases.length; i++) {
+    const releaseId = releases[i].id;
+    const releaseTag = releases[i].tag_name;
 
     try {
+      console.log(`ℹ️  removing release ${releaseTag}..`);
       const _ = await fetch({
         ...commonOpts,
         path: `/repos/${owner}/${repo}/releases/${releaseId}`,
