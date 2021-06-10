@@ -25,7 +25,7 @@ if (!process.env.INPUT_TAG_NAME) {
   process.exitCode = 1;
   return;
 }
-const tagName = process.env.INPUT_TAG_NAME;
+const tagPattern = process.env.INPUT_TAG_NAME;
 
 const shouldDeleteRelease = process.env.INPUT_DELETE_RELEASE === "true";
 const shouldDeleteDraftRelease = process.env.INPUT_DELETE_DRAFT_RELEASE === "true";
@@ -41,11 +41,28 @@ const commonOpts = {
   },
 };
 
-console.log(`🏷  given tag is "${tagName}"`);
+console.log(`🏷  given tag is "${tagPattern}"`);
 
-const tagRef = `refs/tags/${tagName}`;
+async function findTags() {
+  let tags = [];
+  try {
+    const data = await fetch({
+      ...commonOpts,
+      path: `/repos/${owner}/${repo}/tags`,
+      method: "GET",
+    });
+    tags = (data || [])
+      .filter(({ name }) => new RegExp(tagPattern).test(name));
+  } catch (error) {
+    console.error(`🌶  failed to get list of tags <- ${error.message}`);
+    process.exitCode = 1;
+    return [];
+  }
+  return tags;
+}
 
-async function deleteTag() {
+async function deleteTag(tag) {
+  const tagRef = `refs/tags/${tag}`;
   try {
     const _ = await fetch({
       ...commonOpts,
@@ -53,20 +70,20 @@ async function deleteTag() {
       method: "DELETE",
     });
 
-    console.log(`✅  tag "${tagName}" deleted successfully!`);
+    console.log(`✅  tag "${tag}" deleted successfully!`);
   } catch (error) {
     console.error(`🌶  failed to delete ref "${tagRef}" <- ${error.message}`);
     if (error.message === "Reference does not exist") {
       console.error("😕  Proceeding anyway, because tag not existing is the goal");
     } else {
-      console.error(`🌶  An error occured while deleting the tag "${tagName}"`);
+      console.error(`🌶  An error occured while deleting the tag "${tag}"`);
       process.exitCode = 1;
     }
     return;
   }
 }
 
-async function deleteReleases() {
+async function deleteReleases(tag) {
   let releases = [];
   try {
     const data = await fetch({
@@ -75,7 +92,7 @@ async function deleteReleases() {
       method: "GET",
     });
     releases = (data || [])
-      .filter(({ tag_name, draft }) => tag_name === tagName && (shouldDeleteDraftRelease || (draft === false)));
+      .filter(({ tag_name, draft }) => tag_name === tag && (shouldDeleteDraftRelease || (draft === false)));
   } catch (error) {
     console.error(`🌶  failed to get list of releases <- ${error.message}`);
     process.exitCode = 1;
@@ -83,7 +100,7 @@ async function deleteReleases() {
   }
 
   if (releases.length === 0) {
-    console.error(`😕  no releases found associated to tag "${tagName}"`);
+    console.error(`😕  no releases found associated to tag "${tag}"`);
     return;
   }
   console.log(`🍻  found ${releases.length} releases to delete`);
@@ -116,10 +133,14 @@ async function deleteReleases() {
 }
 
 async function run() {
-  if (shouldDeleteRelease) {
-    await deleteReleases();
+  const tags = await findTags();
+  for (let i = 0; i < tags.length; i++) {
+    const tag = tags[i].name;
+    if (shouldDeleteRelease) {
+      await deleteReleases(tag);
+    }
+    await deleteTag(tag);
   }
-  await deleteTag();
 }
 
 run();
