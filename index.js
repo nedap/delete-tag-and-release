@@ -55,7 +55,6 @@ async function findTags() {
       .filter(({ name }) => new RegExp(tagPattern).test(name));
   } catch (error) {
     console.error(`🌶  failed to get list of tags <- ${error.message}`);
-    process.exitCode = 1;
     return [];
   }
   return tags;
@@ -134,12 +133,16 @@ async function deleteReleases(tag) {
 
 async function run() {
   const tags = await findTags();
-  for (let i = 0; i < tags.length; i++) {
-    const tag = tags[i].name;
-    if (shouldDeleteRelease) {
-      await deleteReleases(tag);
+  if (tags.length == 0) {
+    deleteReleases(tagPattern);
+  } else {
+    for (let i = 0; i < tags.length; i++) {
+      const tag = tags[i].name;
+      if (shouldDeleteRelease) {
+        await deleteReleases(tag);
+      }
+      await deleteTag(tag);
     }
-    await deleteTag(tag);
   }
 }
 
