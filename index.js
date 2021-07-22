@@ -82,7 +82,7 @@ async function deleteTag(tag) {
   }
 }
 
-async function deleteReleases(tag) {
+async function deleteReleases(tag_pattern) {
   let releases = [];
   try {
     const data = await fetch({
@@ -91,7 +91,7 @@ async function deleteReleases(tag) {
       method: "GET",
     });
     releases = (data || [])
-      .filter(({ tag_name, draft }) => tag_name === tag && (shouldDeleteDraftRelease || (draft === false)));
+      .filter(({ tag_name, draft }) => new RegExp(tag_pattern).test(tag_name) && (shouldDeleteDraftRelease || (draft === false)));
   } catch (error) {
     console.error(`🌶  failed to get list of releases <- ${error.message}`);
     process.exitCode = 1;
@@ -99,7 +99,7 @@ async function deleteReleases(tag) {
   }
 
   if (releases.length === 0) {
-    console.error(`😕  no releases found associated to tag "${tag}"`);
+    console.error(`😕  no releases found associated to tag "${tag_pattern}"`);
     return;
   }
   console.log(`🍻  found ${releases.length} releases to delete`);
