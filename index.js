@@ -139,7 +139,7 @@ async function run() {
     for (let i = 0; i < tags.length; i++) {
       const tag = tags[i].name;
       if (shouldDeleteRelease) {
-        await deleteReleases(tag);
+        await deleteReleases(`^${tag}$`);
       }
       await deleteTag(tag);
     }
